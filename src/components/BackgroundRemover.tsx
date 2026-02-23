@@ -2,14 +2,16 @@
 
 import { useState } from "react";
 
-type ServerProvider = "birefnet" | "bria" | "removebg" | "clipdrop";
+type ServerProvider = "birefnet" | "bria" | "removebg" | "hf-rmbg" | "replicate-rembg" | "bria-rmbg";
 type Provider = ServerProvider | "imgly";
 
 const PROVIDERS: { value: Provider; label: string; badge: string }[] = [
-  { value: "birefnet", label: "BiRefNet v2", badge: "Best quality" },
-  { value: "bria", label: "BRIA RMBG-2.0", badge: "Alpha matte" },
+  { value: "birefnet", label: "BiRefNet v2", badge: "Best quality · fal.ai" },
+  { value: "bria", label: "BRIA RMBG-2.0", badge: "Alpha matte · fal.ai" },
+  { value: "bria-rmbg", label: "BRIA RMBG-2.0", badge: "Direct · Bria API" },
+  { value: "hf-rmbg", label: "RMBG-2.0", badge: "Cheap · HF" },
+  { value: "replicate-rembg", label: "rembg", badge: "Cheap · Replicate" },
   { value: "removebg", label: "Remove.bg", badge: "Fast" },
-  { value: "clipdrop", label: "Clipdrop", badge: "Stability AI" },
   { value: "imgly", label: "@imgly (browser)", badge: "Free / offline" },
 ];
 
@@ -27,7 +29,7 @@ interface Props {
 }
 
 export default function BackgroundRemover({ imageUrl, onRemoved }: Props) {
-  const [provider, setProvider] = useState<Provider>("birefnet");
+  const [provider, setProvider] = useState<Provider>("hf-rmbg");
   const [birefnetModel, setBirefnetModel] = useState("General Use (Heavy)");
   const [imglyModel, setImglyModel] = useState<ImglyModel>("isnet");
   const [loading, setLoading] = useState(false);

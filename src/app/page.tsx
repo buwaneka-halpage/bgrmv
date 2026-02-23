@@ -2,9 +2,11 @@
 
 import { useState } from "react";
 import ImageGenerator, { GeneratedImage } from "@/components/ImageGenerator";
+import ImageUpload from "@/components/ImageUpload";
 import ImagePreview from "@/components/ImagePreview";
 import BackgroundRemover from "@/components/BackgroundRemover";
 import UpscalePanel from "@/components/UpscalePanel";
+import BriaToolsPanel from "@/components/BriaToolsPanel";
 
 interface QualityResult {
   passed: boolean;
@@ -25,6 +27,8 @@ export default function Home() {
   const [qualityChecking, setQualityChecking] = useState(false);
   const [finalUrl, setFinalUrl] = useState<string | null>(null);
   const [finalSize, setFinalSize] = useState<{ width: number; height: number } | null>(null);
+  const [briaResultUrl, setBriaResultUrl] = useState<string | null>(null);
+  const [briaToolUsed, setBriaToolUsed] = useState<string | null>(null);
 
   function handleGenerate(images: GeneratedImage[]) {
     setGeneratedImages(images);
@@ -43,6 +47,20 @@ export default function Home() {
     setQualityResult(null);
     setFinalUrl(null);
     setFinalSize(null);
+    setBriaResultUrl(null);
+    setBriaToolUsed(null);
+  }
+
+  function handleUpload(img: GeneratedImage) {
+    setSelectedImage(img);
+    setGeneratedImages([]);
+    setRemovedUrl(null);
+    setRemovedProvider(null);
+    setQualityResult(null);
+    setFinalUrl(null);
+    setFinalSize(null);
+    setBriaResultUrl(null);
+    setBriaToolUsed(null);
   }
 
   async function handleRemoved(resultUrl: string, provider: string) {
@@ -82,6 +100,11 @@ export default function Home() {
     setQualityResult(null);
   }
 
+  function handleBriaResult(resultUrl: string, tool: string) {
+    setBriaResultUrl(resultUrl);
+    setBriaToolUsed(tool);
+  }
+
   const displayRemovedUrl = finalUrl ?? removedUrl;
   const displaySize = finalSize ??
     (qualityResult ? qualityResult.outputSize : selectedImage
@@ -109,6 +132,14 @@ export default function Home() {
             Generate Image
           </h2>
           <ImageGenerator onGenerate={handleGenerate} />
+        </section>
+
+        {/* Upload section */}
+        <section className="mt-8 rounded-2xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
+          <h2 className="mb-5 text-sm font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+            Or Upload an Image
+          </h2>
+          <ImageUpload onUpload={handleUpload} />
         </section>
 
         {/* Generated images grid */}
@@ -223,6 +254,17 @@ export default function Home() {
                   />
                 </div>
               )}
+
+              {/* Bria AI Tools */}
+              <div className="rounded-2xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
+                <h2 className="mb-5 text-sm font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+                  Bria AI Tools
+                </h2>
+                <BriaToolsPanel
+                  imageUrl={selectedImage.url}
+                  onResult={handleBriaResult}
+                />
+              </div>
             </div>
           </section>
         )}
@@ -247,6 +289,28 @@ export default function Home() {
                 height={displaySize?.height}
                 label="Background removed"
                 showCheckerboard
+              />
+            </div>
+          </section>
+        )}
+
+        {/* Bria Tool Result */}
+        {briaResultUrl && (
+          <section className="mt-8 rounded-2xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
+            <div className="mb-5 flex items-center justify-between">
+              <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+                Bria Result
+              </h2>
+              {briaToolUsed && (
+                <span className="rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">
+                  {briaToolUsed.replace(/_/g, " ")}
+                </span>
+              )}
+            </div>
+            <div className="max-w-sm">
+              <ImagePreview
+                url={briaResultUrl}
+                label={`Bria ${briaToolUsed?.replace(/_/g, " ") ?? "result"}`}
               />
             </div>
           </section>

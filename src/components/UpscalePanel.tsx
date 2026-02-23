@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 
+type UpscaleProvider = "real-esrgan" | "replicate-esrgan" | "bria";
+
 interface Props {
   imageUrl: string;
   originalWidth?: number;
@@ -19,7 +21,7 @@ export default function UpscalePanel({
 }: Props) {
   const [scale, setScale] = useState<2 | 4>(suggestedScale);
   const [faceEnhance, setFaceEnhance] = useState(true);
-  const [provider, setProvider] = useState<"real-esrgan" | "clipdrop">("real-esrgan");
+  const [provider, setProvider] = useState<UpscaleProvider>("replicate-esrgan");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -88,11 +90,12 @@ export default function UpscalePanel({
           </label>
           <select
             value={provider}
-            onChange={(e) => setProvider(e.target.value as "real-esrgan" | "clipdrop")}
+            onChange={(e) => setProvider(e.target.value as UpscaleProvider)}
             className="rounded-md border border-zinc-200 bg-white px-2 py-1.5 text-sm text-zinc-800 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
           >
+            <option value="replicate-esrgan">Real-ESRGAN (Replicate · cheap)</option>
             <option value="real-esrgan">Real-ESRGAN (fal.ai)</option>
-            <option value="clipdrop">Clipdrop</option>
+            <option value="bria">Increase Resolution (Bria)</option>
           </select>
         </div>
       </div>

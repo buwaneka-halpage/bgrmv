@@ -1,13 +1,14 @@
 import { fal } from "@fal-ai/client";
+import { InferenceClient } from "@huggingface/inference";
+import Replicate from "replicate";
 import { NextRequest, NextResponse } from "next/server";
 
 fal.config({ credentials: process.env.FAL_KEY });
 
-type ServerProvider = "birefnet" | "bria" | "removebg" | "clipdrop";
-type Provider = ServerProvider | "imgly";
-
+type Provider = "birefnet" | "bria" | "removebg" | "hf-rmbg" | "replicate-rembg" | "bria-rmbg";
 type BiRefNetModel = "General Use (Light)" | "General Use (Heavy)" | "Portrait";
 
+// --- fal.ai BiRefNet v2 ---
 async function removeBiRefNet(
   imageUrl: string,
   model: BiRefNetModel = "General Use (Heavy)"
@@ -24,6 +25,7 @@ async function removeBiRefNet(
   return result.data.image.url;
 }
 
+// --- fal.ai BRIA RMBG-2.0 ---
 async function removeBria(imageUrl: string): Promise<string> {
   const result = await fal.subscribe("fal-ai/bria/rmbg", {
     input: { image_url: imageUrl },
@@ -33,12 +35,20 @@ async function removeBria(imageUrl: string): Promise<string> {
   return data.image.url;
 }
 
+// --- Remove.bg ---
 async function removeRemoveBg(imageUrl: string): Promise<string> {
   const apiKey = process.env.REMOVE_BG_API_KEY;
   if (!apiKey) throw new Error("REMOVE_BG_API_KEY not configured");
 
   const formData = new FormData();
-  formData.append("image_url", imageUrl);
+  if (imageUrl.startsWith("data:")) {
+    // For data URLs, decode and send as image_file
+    const base64 = imageUrl.replace(/^data:image\/\w+;base64,/, "");
+    const binary = Buffer.from(base64, "base64");
+    formData.append("image_file", new Blob([binary]), "image.png");
+  } else {
+    formData.append("image_url", imageUrl);
+  }
   formData.append("size", "auto");
 
   const res = await fetch("https://api.remove.bg/v1.0/removebg", {
@@ -57,35 +67,73 @@ async function removeRemoveBg(imageUrl: string): Promise<string> {
   return `data:image/png;base64,${base64}`;
 }
 
-async function removeClipdrop(imageUrl: string): Promise<string> {
-  const apiKey = process.env.CLIPDROP_API_KEY;
-  if (!apiKey) throw new Error("CLIPDROP_API_KEY not configured");
+// --- Hugging Face RMBG-2.0 ---
+async function removeHfRmbg(imageUrl: string): Promise<string> {
+  const hf = new InferenceClient(process.env.HF_TOKEN);
 
   const imgRes = await fetch(imageUrl);
-  if (!imgRes.ok) throw new Error("Failed to fetch source image for Clipdrop");
-  const imgBuffer = await imgRes.arrayBuffer();
+  if (!imgRes.ok) throw new Error("Failed to fetch source image for HF");
+  const imgBlob = await imgRes.blob();
 
-  const formData = new FormData();
-  formData.append(
-    "image_file",
-    new Blob([imgBuffer], { type: "image/png" }),
-    "image.png"
-  );
-
-  const res = await fetch("https://clipdrop-api.co/remove-background/v1", {
-    method: "POST",
-    headers: { "x-api-key": apiKey },
-    body: formData,
+  const resultBlob = await hf.imageSegmentation({
+    model: "briaai/RMBG-2.0",
+    inputs: imgBlob,
   });
 
-  if (!res.ok) {
-    const errText = await res.text();
-    throw new Error(`Clipdrop error ${res.status}: ${errText}`);
+  if (resultBlob instanceof Blob) {
+    const buffer = Buffer.from(await resultBlob.arrayBuffer());
+    const base64 = buffer.toString("base64");
+    return `data:image/png;base64,${base64}`;
   }
 
-  const buffer = await res.arrayBuffer();
-  const base64 = Buffer.from(buffer).toString("base64");
-  return `data:image/png;base64,${base64}`;
+  throw new Error("Unexpected HF RMBG-2.0 response format");
+}
+
+// --- Replicate rembg ---
+async function removeReplicateRembg(imageUrl: string): Promise<string> {
+  const replicate = new Replicate({ auth: process.env.REPLICATE_API_TOKEN });
+
+  const output = await replicate.run("cjwbw/rembg", {
+    input: { image: imageUrl },
+  });
+
+  if (typeof output === "string") return output;
+  const fileOutput = output as { url(): URL };
+  if (typeof fileOutput.url === "function") return fileOutput.url().toString();
+
+  throw new Error("Unexpected Replicate rembg response format");
+}
+
+// --- Bria RMBG-2.0 (direct API) ---
+async function removeBriaRmbg(imageUrl: string): Promise<string> {
+  const apiToken = process.env.BRIA_API_TOKEN;
+  if (!apiToken) throw new Error("BRIA_API_TOKEN not configured");
+
+  // Bria accepts raw base64 without the data URL prefix
+  let image = imageUrl;
+  if (image.startsWith("data:")) {
+    image = image.replace(/^data:image\/\w+;base64,/, "");
+  }
+
+  const res = await fetch(
+    "https://engine.prod.bria-api.com/v2/image/edit/remove_background",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        api_token: apiToken,
+      },
+      body: JSON.stringify({ image, sync: true }),
+    }
+  );
+
+  if (!res.ok) {
+    const errData = await res.json().catch(() => null);
+    throw new Error(errData?.error?.message ?? `Bria error ${res.status}`);
+  }
+
+  const data = await res.json();
+  return data.result?.image_url ?? "";
 }
 
 export async function POST(req: NextRequest) {
@@ -117,8 +165,14 @@ export async function POST(req: NextRequest) {
       case "removebg":
         resultUrl = await removeRemoveBg(imageUrl);
         break;
-      case "clipdrop":
-        resultUrl = await removeClipdrop(imageUrl);
+      case "hf-rmbg":
+        resultUrl = await removeHfRmbg(imageUrl);
+        break;
+      case "replicate-rembg":
+        resultUrl = await removeReplicateRembg(imageUrl);
+        break;
+      case "bria-rmbg":
+        resultUrl = await removeBriaRmbg(imageUrl);
         break;
       default:
         return NextResponse.json({ error: "Unknown provider" }, { status: 400 });
