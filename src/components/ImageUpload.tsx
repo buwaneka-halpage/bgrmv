@@ -3,7 +3,7 @@
 import { useRef, useState, useCallback } from "react";
 import type { GeneratedImage } from "./ImageGenerator";
 
-const MAX_SIZE = 12 * 1024 * 1024; // 12 MB
+const MAX_SIZE = 12 * 1024 * 1024;
 const ACCEPTED = ["image/png", "image/jpeg", "image/webp"];
 
 interface Props {
@@ -13,43 +13,25 @@ interface Props {
 export default function ImageUpload({ onUpload }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [error, setError]       = useState<string | null>(null);
+  const [loading, setLoading]   = useState(false);
 
   const processFile = useCallback(
     (file: File) => {
       setError(null);
-
-      if (!ACCEPTED.includes(file.type)) {
-        setError("Unsupported format. Use PNG, JPG, or WEBP.");
-        return;
-      }
-      if (file.size > MAX_SIZE) {
-        setError("File too large. Maximum size is 12 MB.");
-        return;
-      }
+      if (!ACCEPTED.includes(file.type)) { setError("Unsupported format. Use PNG, JPG, or WEBP."); return; }
+      if (file.size > MAX_SIZE)          { setError("File too large. Maximum size is 12 MB."); return; }
 
       setLoading(true);
-
       const reader = new FileReader();
       reader.onloadend = () => {
         const dataUrl = reader.result as string;
-
         const img = new Image();
-        img.onload = () => {
-          onUpload({ url: dataUrl, width: img.width, height: img.height });
-          setLoading(false);
-        };
-        img.onerror = () => {
-          setError("Failed to read image dimensions.");
-          setLoading(false);
-        };
+        img.onload  = () => { onUpload({ url: dataUrl, width: img.width, height: img.height }); setLoading(false); };
+        img.onerror = () => { setError("Failed to read image dimensions."); setLoading(false); };
         img.src = dataUrl;
       };
-      reader.onerror = () => {
-        setError("Failed to read file.");
-        setLoading(false);
-      };
+      reader.onerror = () => { setError("Failed to read file."); setLoading(false); };
       reader.readAsDataURL(file);
     },
     [onUpload]
@@ -68,64 +50,68 @@ export default function ImageUpload({ onUpload }: Props) {
     if (file) processFile(file);
   }
 
-  function handleDragOver(e: React.DragEvent) {
-    e.preventDefault();
-    setDragging(true);
-  }
-
-  function handleDragLeave(e: React.DragEvent) {
-    e.preventDefault();
-    setDragging(false);
-  }
-
   return (
-    <div className="flex flex-col gap-3">
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
       <button
         type="button"
         onClick={() => inputRef.current?.click()}
         onDrop={handleDrop}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
+        onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+        onDragLeave={(e) => { e.preventDefault(); setDragging(false); }}
         disabled={loading}
-        className={`flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed px-6 py-8 text-sm transition-colors ${
-          dragging
-            ? "border-zinc-900 bg-zinc-100 dark:border-zinc-100 dark:bg-zinc-800"
-            : "border-zinc-300 hover:border-zinc-400 dark:border-zinc-600 dark:hover:border-zinc-500"
-        } ${loading ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 10,
+          padding: "28px 24px",
+          borderRadius: 12,
+          border: `1.5px dashed ${dragging ? "var(--accent)" : "var(--border)"}`,
+          background: dragging ? "var(--accent-dim)" : "transparent",
+          cursor: loading ? "not-allowed" : "pointer",
+          opacity: loading ? 0.5 : 1,
+          transition: "border-color 0.15s, background 0.15s",
+          width: "100%",
+        }}
       >
-        <svg
-          className="h-8 w-8 text-zinc-400 dark:text-zinc-500"
-          fill="none"
-          viewBox="0 0 24 24"
-          strokeWidth={1.5}
-          stroke="currentColor"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5"
-          />
-        </svg>
-        <span className="font-medium text-zinc-600 dark:text-zinc-300">
-          {loading ? "Reading image…" : "Click to upload or drag and drop"}
-        </span>
-        <span className="text-xs text-zinc-400 dark:text-zinc-500">
-          PNG, JPG, or WEBP — max 12 MB
-        </span>
+        {/* Upload icon */}
+        <div style={{
+          width: 40, height: 40, borderRadius: 10,
+          background: dragging ? "var(--accent-dim)" : "var(--surface-2)",
+          border: "1px solid var(--border)",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          transition: "background 0.15s",
+        }}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+            stroke={dragging ? "var(--accent)" : "var(--text-secondary)"}
+            strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+            <polyline points="17 8 12 3 7 8" />
+            <line x1="12" y1="3" x2="12" y2="15" />
+          </svg>
+        </div>
+
+        <div style={{ textAlign: "center" }}>
+          <p style={{ fontSize: 13, fontWeight: 500, color: "var(--text-primary)", margin: 0 }}>
+            {loading ? "Reading image…" : "Click to upload or drag and drop"}
+          </p>
+          <p style={{ fontSize: 11, color: "var(--text-muted)", margin: "3px 0 0" }}>
+            PNG, JPG, or WEBP — max 12 MB
+          </p>
+        </div>
       </button>
 
-      <input
-        ref={inputRef}
-        type="file"
-        accept="image/png,image/jpeg,image/webp"
-        onChange={handleChange}
-        className="hidden"
-      />
+      <input ref={inputRef} type="file" accept="image/png,image/jpeg,image/webp"
+        onChange={handleChange} style={{ display: "none" }} />
 
       {error && (
-        <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-600 dark:bg-red-900/20 dark:text-red-400">
+        <div className="animate-in" style={{
+          background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.25)",
+          borderRadius: 8, padding: "8px 12px", color: "var(--red)", fontSize: 13,
+        }}>
           {error}
-        </p>
+        </div>
       )}
     </div>
   );

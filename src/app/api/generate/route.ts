@@ -3,6 +3,7 @@ import { InferenceClient } from "@huggingface/inference";
 import Replicate from "replicate";
 import { NextRequest, NextResponse } from "next/server";
 import type { NanoBananaProInput } from "@fal-ai/client/endpoints";
+import { logReq, logOk, logErr } from "@/lib/logger";
 
 fal.config({ credentials: process.env.FAL_KEY });
 
@@ -119,6 +120,7 @@ async function generateHfFlux(prompt: string): Promise<GeneratedImage[]> {
 }
 
 export async function POST(req: NextRequest) {
+  const t0 = Date.now();
   try {
     const body = await req.json();
     const {
@@ -132,6 +134,8 @@ export async function POST(req: NextRequest) {
     if (!prompt || typeof prompt !== "string" || !prompt.trim()) {
       return NextResponse.json({ error: "prompt is required" }, { status: 400 });
     }
+
+    logReq("/api/generate", { provider, prompt: prompt.trim(), aspectRatio, numImages });
 
     let images: GeneratedImage[];
     let lastError: unknown;
@@ -159,6 +163,7 @@ export async function POST(req: NextRequest) {
         for (let attempt = 1; attempt <= 3; attempt++) {
           try {
             images = await generateFal(prompt.trim(), aspectRatio, resolution, numImages);
+            logOk("/api/generate", Date.now() - t0, { provider, images: images.length });
             return NextResponse.json({ images });
           } catch (err: unknown) {
             lastError = err;
@@ -170,12 +175,15 @@ export async function POST(req: NextRequest) {
         console.error("generate error:", lastError);
         const msg =
           lastError instanceof Error ? lastError.message : "Generation failed";
+        logErr("/api/generate", Date.now() - t0, lastError, { provider });
         return NextResponse.json({ error: msg }, { status: msg.includes("safety") ? 422 : 500 });
     }
 
+    logOk("/api/generate", Date.now() - t0, { provider, images: images!.length });
     return NextResponse.json({ images });
   } catch (err) {
     console.error("generate error:", err);
+    logErr("/api/generate", Date.now() - t0, err);
     const msg = err instanceof Error ? err.message : "Generation failed";
     return NextResponse.json({ error: msg }, { status: 500 });
   }

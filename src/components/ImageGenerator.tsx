@@ -16,13 +16,44 @@ interface Props {
   onGenerate: (images: GeneratedImage[]) => void;
 }
 
-const GEN_PROVIDERS: { value: GenProvider; label: string; badge: string }[] = [
-  { value: "fal", label: "Nano Banana Pro", badge: "fal.ai" },
-  { value: "replicate-flux-schnell", label: "Flux Schnell", badge: "Replicate · cheap" },
-  { value: "hf-flux", label: "FLUX.1-dev", badge: "HF · cheap" },
-  { value: "bria", label: "FIBO", badge: "Bria" },
-  { value: "bria-lite", label: "FIBO Lite", badge: "Bria · fast" },
+const GEN_PROVIDERS: {
+  value: GenProvider;
+  label: string;
+  badge: string;
+  cost: string;
+  tier: "premium" | "standard" | "cheap";
+}[] = [
+  { value: "replicate-flux-schnell", label: "Flux Schnell",    badge: "Replicate",    cost: "~$0.003", tier: "cheap" },
+  { value: "hf-flux",               label: "FLUX.1-dev",      badge: "Hugging Face", cost: "~$0.005", tier: "cheap" },
+  { value: "bria",                   label: "FIBO",            badge: "Bria",         cost: "varies",  tier: "standard" },
+  { value: "bria-lite",              label: "FIBO Lite",       badge: "Bria · fast",  cost: "varies",  tier: "cheap" },
+  { value: "fal",                    label: "Nano Banana Pro", badge: "fal.ai",       cost: "~$0.04",  tier: "premium" },
 ];
+
+const COST_COLOR: Record<string, string> = {
+  premium:  "#a78bfa",
+  standard: "#38bdf8",
+  cheap:    "#4ade80",
+};
+
+const ASPECT_RATIOS: AspectRatio[] = ["1:1", "16:9", "9:16", "4:3", "3:4"];
+
+const label11: React.CSSProperties = {
+  color: "var(--text-muted)",
+  fontSize: 11,
+  letterSpacing: "0.08em",
+  fontWeight: 600,
+  textTransform: "uppercase",
+};
+
+const inputBase: React.CSSProperties = {
+  background: "var(--surface-2)",
+  border: "1px solid var(--border)",
+  borderRadius: 8,
+  color: "var(--text-primary)",
+  fontSize: 13,
+  outline: "none",
+};
 
 export default function ImageGenerator({ onGenerate }: Props) {
   const [prompt, setPrompt] = useState("");
@@ -34,9 +65,12 @@ export default function ImageGenerator({ onGenerate }: Props) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const singleOnly = genProvider === "hf-flux" || genProvider === "bria" || genProvider === "bria-lite";
+  const canSubmit = !loading && prompt.trim().length > 0;
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!prompt.trim()) return;
+    if (!canSubmit) return;
     setLoading(true);
     setError(null);
 
@@ -44,7 +78,7 @@ export default function ImageGenerator({ onGenerate }: Props) {
       const body: Record<string, unknown> = {
         prompt,
         aspectRatio,
-        numImages,
+        numImages: singleOnly ? 1 : numImages,
         provider: genProvider,
       };
       if (genProvider === "fal") body.resolution = resolution;
@@ -57,12 +91,7 @@ export default function ImageGenerator({ onGenerate }: Props) {
       });
 
       const data = await res.json();
-
-      if (!res.ok) {
-        setError(data.error ?? "Generation failed");
-        return;
-      }
-
+      if (!res.ok) { setError(data.error ?? "Generation failed"); return; }
       onGenerate(data.images);
     } catch {
       setError("Network error — please try again");
@@ -72,77 +101,86 @@ export default function ImageGenerator({ onGenerate }: Props) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-      <div className="flex flex-col gap-1.5">
-        <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-          Prompt
-        </label>
+    <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+
+      {/* ── Prompt ──────────────────────────────────── */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        <label htmlFor="gen-prompt" style={label11}>Prompt</label>
         <textarea
+          id="gen-prompt"
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
           placeholder="Describe the image you want to generate…"
           rows={3}
-          className="w-full resize-none rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 placeholder-zinc-400 focus:border-zinc-400 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:placeholder-zinc-500"
+          style={{ ...inputBase, padding: "10px 12px", resize: "none", width: "100%", lineHeight: 1.6 }}
+          onFocus={(e) => (e.target.style.borderColor = "var(--border-bright)")}
+          onBlur={(e)  => (e.target.style.borderColor = "var(--border)")}
         />
       </div>
 
-      <div className="flex flex-col gap-2">
-        <label className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
-          Model
-        </label>
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-          {GEN_PROVIDERS.map((p) => (
-            <label
-              key={p.value}
-              className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-colors ${
-                genProvider === p.value
-                  ? "border-zinc-900 bg-zinc-50 dark:border-zinc-100 dark:bg-zinc-800"
-                  : "border-zinc-200 hover:border-zinc-300 dark:border-zinc-700 dark:hover:border-zinc-600"
-              }`}
-            >
-              <input
-                type="radio"
-                name="genProvider"
-                value={p.value}
-                checked={genProvider === p.value}
-                onChange={() => setGenProvider(p.value)}
-                className="sr-only"
-              />
-              <span className="font-medium text-zinc-800 dark:text-zinc-200">
-                {p.label}
-              </span>
-              <span className="ml-auto text-xs text-zinc-400">{p.badge}</span>
-            </label>
-          ))}
+      {/* ── Model selector ──────────────────────────── */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        <span style={label11}>Model</span>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(170px, 1fr))", gap: 8 }}>
+          {GEN_PROVIDERS.map((p) => {
+            const sel = genProvider === p.value;
+            return (
+              <label
+                key={p.value}
+                style={{
+                  display: "flex", flexDirection: "column", gap: 3,
+                  padding: "10px 12px", borderRadius: 8,
+                  border: `1px solid ${sel ? "var(--accent)" : "var(--border)"}`,
+                  background: sel ? "var(--accent-dim)" : "var(--surface-2)",
+                  cursor: "pointer", transition: "border-color 0.12s, background 0.12s",
+                }}
+              >
+                <input type="radio" name="genProvider" value={p.value} checked={sel}
+                  onChange={() => setGenProvider(p.value)} style={{ display: "none" }} />
+                <span style={{ fontWeight: 500, color: "var(--text-primary)", fontSize: 13 }}>{p.label}</span>
+                <div style={{ display: "flex", justifyContent: "space-between" }}>
+                  <span style={{ fontSize: 11, color: "var(--text-muted)" }}>{p.badge}</span>
+                  <span style={{ fontSize: 11, color: COST_COLOR[p.tier], fontVariantNumeric: "tabular-nums" }}>
+                    {p.cost}
+                  </span>
+                </div>
+              </label>
+            );
+          })}
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <div className="flex flex-col gap-1">
-          <label className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
-            Aspect Ratio
-          </label>
-          <select
-            value={aspectRatio}
-            onChange={(e) => setAspectRatio(e.target.value as AspectRatio)}
-            className="rounded-md border border-zinc-200 bg-white px-2 py-1.5 text-sm text-zinc-800 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
-          >
-            {(["1:1", "16:9", "9:16", "4:3", "3:4"] as AspectRatio[]).map((r) => (
-              <option key={r} value={r}>{r}</option>
-            ))}
-          </select>
+      {/* ── Options row ─────────────────────────────── */}
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 16, alignItems: "flex-end" }}>
+
+        {/* Aspect ratio pills */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          <span style={label11}>Aspect Ratio</span>
+          <div style={{ display: "flex", gap: 4 }}>
+            {ASPECT_RATIOS.map((r) => {
+              const sel = aspectRatio === r;
+              return (
+                <button key={r} type="button" onClick={() => setAspectRatio(r)}
+                  style={{
+                    padding: "4px 9px", borderRadius: 6,
+                    border: `1px solid ${sel ? "var(--accent)" : "var(--border)"}`,
+                    background: sel ? "var(--accent-dim)" : "transparent",
+                    color: sel ? "var(--accent)" : "var(--text-secondary)",
+                    fontSize: 12, cursor: "pointer", transition: "all 0.12s",
+                    fontWeight: sel ? 600 : 400,
+                  }}
+                >{r}</button>
+              );
+            })}
+          </div>
         </div>
 
+        {/* Resolution (fal only) */}
         {genProvider === "fal" && (
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
-              Resolution
-            </label>
-            <select
-              value={resolution}
-              onChange={(e) => setResolution(e.target.value as Resolution)}
-              className="rounded-md border border-zinc-200 bg-white px-2 py-1.5 text-sm text-zinc-800 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
-            >
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <span style={label11}>Resolution</span>
+            <select value={resolution} onChange={(e) => setResolution(e.target.value as Resolution)}
+              style={{ ...inputBase, padding: "5px 28px 5px 10px" }}>
               <option value="1K">1K</option>
               <option value="2K">2K</option>
               <option value="4K">4K (+cost)</option>
@@ -150,46 +188,64 @@ export default function ImageGenerator({ onGenerate }: Props) {
           </div>
         )}
 
-        <div className="flex flex-col gap-1">
-          <label className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
-            Images
-          </label>
-          <select
-            value={numImages}
-            onChange={(e) => setNumImages(parseInt(e.target.value))}
-            className="rounded-md border border-zinc-200 bg-white px-2 py-1.5 text-sm text-zinc-800 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
-          >
-            {(genProvider === "hf-flux" || genProvider === "bria" || genProvider === "bria-lite" ? [1] : [1, 2, 3, 4]).map((n) => (
-              <option key={n} value={n}>{n}</option>
-            ))}
-          </select>
-        </div>
+        {/* Count pills */}
+        {!singleOnly && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <span style={label11}>Count</span>
+            <div style={{ display: "flex", gap: 4 }}>
+              {[1, 2, 3, 4].map((n) => {
+                const sel = numImages === n;
+                return (
+                  <button key={n} type="button" onClick={() => setNumImages(n)}
+                    style={{
+                      width: 32, height: 30, borderRadius: 6,
+                      border: `1px solid ${sel ? "var(--accent)" : "var(--border)"}`,
+                      background: sel ? "var(--accent-dim)" : "transparent",
+                      color: sel ? "var(--accent)" : "var(--text-secondary)",
+                      fontSize: 13, cursor: "pointer", transition: "all 0.12s",
+                      fontWeight: sel ? 600 : 400,
+                    }}
+                  >{n}</button>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
-        <div className="flex flex-col gap-1">
-          <label className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
-            Seed (optional)
-          </label>
-          <input
-            type="number"
-            value={seed}
-            onChange={(e) => setSeed(e.target.value)}
+        {/* Seed */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          <span style={label11}>Seed</span>
+          <input type="number" value={seed} onChange={(e) => setSeed(e.target.value)}
             placeholder="random"
-            className="rounded-md border border-zinc-200 bg-white px-2 py-1.5 text-sm text-zinc-800 placeholder-zinc-400 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
-          />
+            style={{ ...inputBase, width: 90, padding: "5px 10px" }} />
         </div>
       </div>
 
+      {/* ── Error ───────────────────────────────────── */}
       {error && (
-        <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-600 dark:bg-red-900/20 dark:text-red-400">
+        <div className="animate-in" style={{
+          background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.25)",
+          borderRadius: 8, padding: "8px 12px", color: "var(--red)", fontSize: 13,
+        }}>
           {error}
-        </p>
+        </div>
       )}
 
+      {/* ── Submit ──────────────────────────────────── */}
       <button
         type="submit"
-        disabled={loading || !prompt.trim()}
-        className="flex h-10 items-center justify-center rounded-lg bg-zinc-900 px-5 text-sm font-medium text-white transition-colors hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
+        disabled={!canSubmit}
+        style={{
+          height: 40, paddingLeft: 24, paddingRight: 24, borderRadius: 8, border: "none",
+          background: canSubmit ? "var(--accent)" : "var(--surface-3)",
+          color: canSubmit ? "white" : "var(--text-muted)",
+          fontSize: 14, fontWeight: 500, cursor: canSubmit ? "pointer" : "not-allowed",
+          display: "inline-flex", alignItems: "center", gap: 8, transition: "background 0.15s",
+        }}
+        onMouseEnter={(e) => { if (canSubmit) (e.currentTarget as HTMLButtonElement).style.background = "var(--accent-hover)"; }}
+        onMouseLeave={(e) => { if (canSubmit) (e.currentTarget as HTMLButtonElement).style.background = "var(--accent)"; }}
       >
+        {loading && <span className="spinner" />}
         {loading ? "Generating…" : "Generate"}
       </button>
     </form>

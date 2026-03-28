@@ -2,6 +2,7 @@ import { fal } from "@fal-ai/client";
 import { InferenceClient } from "@huggingface/inference";
 import Replicate from "replicate";
 import { NextRequest, NextResponse } from "next/server";
+import { logReq, logOk, logErr } from "@/lib/logger";
 
 fal.config({ credentials: process.env.FAL_KEY });
 
@@ -137,6 +138,7 @@ async function removeBriaRmbg(imageUrl: string): Promise<string> {
 }
 
 export async function POST(req: NextRequest) {
+  const t0 = Date.now();
   try {
     const body = await req.json();
     const {
@@ -152,6 +154,8 @@ export async function POST(req: NextRequest) {
     if (!imageUrl) {
       return NextResponse.json({ error: "imageUrl is required" }, { status: 400 });
     }
+
+    logReq("/api/remove-background", { provider, imageUrl, birefnetModel: options.birefnetModel });
 
     let resultUrl: string;
 
@@ -178,9 +182,11 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "Unknown provider" }, { status: 400 });
     }
 
+    logOk("/api/remove-background", Date.now() - t0, { provider, resultUrl });
     return NextResponse.json({ resultUrl, provider });
   } catch (err) {
     console.error("remove-background error:", err);
+    logErr("/api/remove-background", Date.now() - t0, err);
     const msg = err instanceof Error ? err.message : "Background removal failed";
     return NextResponse.json({ error: msg }, { status: 500 });
   }

@@ -1,6 +1,7 @@
 import { fal } from "@fal-ai/client";
 import Replicate from "replicate";
 import { NextRequest, NextResponse } from "next/server";
+import { logReq, logOk, logErr } from "@/lib/logger";
 
 fal.config({ credentials: process.env.FAL_KEY });
 
@@ -89,6 +90,7 @@ async function upscaleBria(
 }
 
 export async function POST(req: NextRequest) {
+  const t0 = Date.now();
   try {
     const body = await req.json();
     const {
@@ -111,9 +113,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "imageUrl is required" }, { status: 400 });
     }
 
+    logReq("/api/upscale", { provider, imageUrl, targetScale, faceEnhance });
+
     if (provider === "bria") {
       const resultUrl = await upscaleBria(imageUrl, targetScale);
-      return NextResponse.json({
+      const resp = {
         resultUrl,
         originalSize: { width: originalWidth ?? null, height: originalHeight ?? null },
         outputSize: {
@@ -121,12 +125,14 @@ export async function POST(req: NextRequest) {
           height: (originalHeight ?? 0) * targetScale,
         },
         scaleApplied: targetScale,
-      });
+      };
+      logOk("/api/upscale", Date.now() - t0, { provider, resultUrl, scale: targetScale });
+      return NextResponse.json(resp);
     }
 
     if (provider === "replicate-esrgan") {
       const resultUrl = await upscaleReplicateESRGAN(imageUrl, targetScale, faceEnhance);
-      return NextResponse.json({
+      const resp = {
         resultUrl,
         originalSize: { width: originalWidth ?? null, height: originalHeight ?? null },
         outputSize: {
@@ -134,10 +140,18 @@ export async function POST(req: NextRequest) {
           height: (originalHeight ?? 0) * targetScale,
         },
         scaleApplied: targetScale,
-      });
+      };
+      logOk("/api/upscale", Date.now() - t0, { provider, resultUrl, scale: targetScale });
+      return NextResponse.json(resp);
     }
 
     const output = await upscaleRealESRGAN(imageUrl, targetScale, faceEnhance);
+    logOk("/api/upscale", Date.now() - t0, {
+      provider,
+      resultUrl: output.url,
+      scale: targetScale,
+      outputSize: `${output.width}x${output.height}`,
+    });
     return NextResponse.json({
       resultUrl: output.url,
       originalSize: { width: originalWidth ?? null, height: originalHeight ?? null },
@@ -146,6 +160,7 @@ export async function POST(req: NextRequest) {
     });
   } catch (err) {
     console.error("upscale error:", err);
+    logErr("/api/upscale", Date.now() - t0, err);
     const msg = err instanceof Error ? err.message : "Upscaling failed";
     return NextResponse.json({ error: msg }, { status: 500 });
   }

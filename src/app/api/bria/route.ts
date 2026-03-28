@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { logReq, logOk, logErr } from "@/lib/logger";
 
 const BRIA_BASE = "https://engine.prod.bria-api.com/v2";
 
@@ -79,6 +80,7 @@ async function callBria(
 }
 
 export async function POST(req: NextRequest) {
+  const t0 = Date.now();
   try {
     const body = await req.json();
     const { action, ...params } = body as {
@@ -93,10 +95,15 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Log params but sanitize large image/mask fields via the logger's sanitize
+    logReq("/api/bria", { action, ...params });
+
     const result = await callBria(action, params);
+    logOk("/api/bria", Date.now() - t0, { action, image_url: result.image_url });
     return NextResponse.json({ result, action });
   } catch (err) {
     console.error("bria error:", err);
+    logErr("/api/bria", Date.now() - t0, err);
     const msg = err instanceof Error ? err.message : "Bria API call failed";
     return NextResponse.json({ error: msg }, { status: 500 });
   }

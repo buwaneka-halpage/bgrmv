@@ -10,13 +10,7 @@ interface Props {
   showCheckerboard?: boolean;
 }
 
-export default function ImagePreview({
-  url,
-  width,
-  height,
-  label,
-  showCheckerboard = false,
-}: Props) {
+export default function ImagePreview({ url, width, height, label, showCheckerboard = false }: Props) {
   const isDataUrl = url.startsWith("data:");
 
   function handleDownload() {
@@ -26,39 +20,45 @@ export default function ImagePreview({
     a.click();
   }
 
-  const checkerStyle = showCheckerboard
-    ? {
-        backgroundImage:
-          "linear-gradient(45deg, #ccc 25%, transparent 25%), linear-gradient(-45deg, #ccc 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #ccc 75%), linear-gradient(-45deg, transparent 75%, #ccc 75%)",
-        backgroundSize: "16px 16px",
-        backgroundPosition: "0 0, 0 8px, 8px -8px, -8px 0px",
-      }
-    : {};
-
   return (
-    <div className="flex flex-col gap-2">
-      {label && (
-        <div className="flex items-center justify-between">
-          <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
-            {label}
-          </span>
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+
+      {/* ── Meta row ──────────────────────────────── */}
+      {(label || (width && height)) && (
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          {label && (
+            <span style={{ fontSize: 12, color: "var(--text-secondary)", fontWeight: 500 }}>
+              {label}
+            </span>
+          )}
           {width && height && (
-            <span className="text-xs text-zinc-400 dark:text-zinc-500">
+            <span style={{
+              fontSize: 11, color: "var(--text-muted)",
+              fontVariantNumeric: "tabular-nums", letterSpacing: "0.02em",
+            }}>
               {width} × {height}
             </span>
           )}
         </div>
       )}
+
+      {/* ── Image container ─────────────────────── */}
       <div
-        className="relative overflow-hidden rounded-xl border border-zinc-200 dark:border-zinc-700"
-        style={checkerStyle}
+        className={showCheckerboard ? "checkerboard" : ""}
+        style={{
+          position: "relative",
+          overflow: "hidden",
+          borderRadius: 12,
+          border: "1px solid var(--border)",
+          background: showCheckerboard ? undefined : "var(--surface-2)",
+        }}
       >
         {isDataUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={url}
             alt={label ?? "Generated image"}
-            className="h-auto w-full object-contain"
+            style={{ width: "100%", height: "auto", display: "block", objectFit: "contain" }}
           />
         ) : (
           <Image
@@ -66,15 +66,49 @@ export default function ImagePreview({
             alt={label ?? "Generated image"}
             width={width ?? 800}
             height={height ?? 800}
-            className="h-auto w-full object-contain"
+            style={{ width: "100%", height: "auto", display: "block", objectFit: "contain" }}
             unoptimized
           />
         )}
       </div>
+
+      {/* ── Download button ─────────────────────── */}
       <button
         onClick={handleDownload}
-        className="flex h-9 items-center justify-center rounded-lg border border-zinc-200 px-4 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
+        style={{
+          height: 34,
+          paddingLeft: 14,
+          paddingRight: 14,
+          borderRadius: 8,
+          border: "1px solid var(--border)",
+          background: "transparent",
+          color: "var(--text-secondary)",
+          fontSize: 12,
+          fontWeight: 500,
+          cursor: "pointer",
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 6,
+          transition: "border-color 0.15s, color 0.15s",
+          alignSelf: "flex-start",
+        }}
+        onMouseEnter={(e) => {
+          const btn = e.currentTarget as HTMLButtonElement;
+          btn.style.borderColor = "var(--border-bright)";
+          btn.style.color = "var(--text-primary)";
+        }}
+        onMouseLeave={(e) => {
+          const btn = e.currentTarget as HTMLButtonElement;
+          btn.style.borderColor = "var(--border)";
+          btn.style.color = "var(--text-secondary)";
+        }}
       >
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+          <polyline points="7 10 12 15 17 10" />
+          <line x1="12" y1="15" x2="12" y2="3" />
+        </svg>
         Download PNG
       </button>
     </div>

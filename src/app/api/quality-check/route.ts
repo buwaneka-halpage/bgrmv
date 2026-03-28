@@ -1,5 +1,6 @@
 import sharp from "sharp";
 import { NextRequest, NextResponse } from "next/server";
+import { logReq, logOk, logErr } from "@/lib/logger";
 
 async function fetchImageBuffer(url: string): Promise<Buffer> {
   if (url.startsWith("data:")) {
@@ -17,6 +18,7 @@ function suggestedScale(width: number, height: number): 2 | 4 {
 }
 
 export async function POST(req: NextRequest) {
+  const t0 = Date.now();
   try {
     const body = await req.json();
     const {
@@ -33,6 +35,8 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
+
+    logReq("/api/quality-check", { originalImageUrl, processedImageUrl });
 
     const [origBuffer, procBuffer] = await Promise.all([
       fetchImageBuffer(originalImageUrl),
@@ -92,9 +96,16 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    logOk("/api/quality-check", Date.now() - t0, {
+      passed,
+      recommendation,
+      qualityRatio: Math.round(qualityRatio * 100) / 100,
+      hasTransparency,
+    });
     return NextResponse.json(response);
   } catch (err) {
     console.error("quality-check error:", err);
+    logErr("/api/quality-check", Date.now() - t0, err);
     const msg = err instanceof Error ? err.message : "Quality check failed";
     return NextResponse.json({ error: msg }, { status: 500 });
   }
